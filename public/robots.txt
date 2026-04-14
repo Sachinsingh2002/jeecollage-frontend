@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /profile
+Disallow: /bookmarks
+
+Sitemap: https://collegelocator-india.preview.emergentagent.com/api/sitemap.xml
