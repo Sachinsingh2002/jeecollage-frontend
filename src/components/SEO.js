@@ -37,7 +37,6 @@ export const SEO = ({ title, description, keywords, canonical, type = 'website',
       {canonical && <link rel="canonical" href={canonical} />}
       <meta name="robots" content="index, follow" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <html lang="en" />
       {allJsonLd.map((ld, i) => (
         <script key={i} type="application/ld+json">
           {JSON.stringify(ld)}
