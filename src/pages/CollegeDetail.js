@@ -8,6 +8,7 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import { formatApiErrorDetail } from '../contexts/AuthContext';
 import { trackPageView } from '../utils/analytics';
+import { getCollegeByIdFromCatalog } from '../data/collegesCatalog';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -79,8 +80,11 @@ export const CollegeDetail = () => {
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [collegeLoading, setCollegeLoading] = useState(true);
 
   useEffect(() => {
+    setCollege(null);
+    setCollegeLoading(true);
     fetchCollege();
     fetchReviews();
     fetchJsonLd();
@@ -88,11 +92,28 @@ export const CollegeDetail = () => {
 
   const fetchCollege = async () => {
     try {
-      const { data } = await axios.get(`${API}/colleges/${id}`);
-      setCollege(data);
-      trackPageView(`/colleges/${id}`, { college_id: id });
-    } catch (error) {
-      console.error('Error fetching college:', error);
+      if (!BACKEND_URL) {
+        const local = getCollegeByIdFromCatalog(id);
+        if (local) {
+          setCollege(local);
+          trackPageView(`/colleges/${id}`, { college_id: id, source: 'catalog' });
+        }
+        return;
+      }
+      try {
+        const { data } = await axios.get(`${API}/colleges/${id}`);
+        setCollege(data);
+        trackPageView(`/colleges/${id}`, { college_id: id });
+      } catch (error) {
+        console.error('Error fetching college:', error);
+        const local = getCollegeByIdFromCatalog(id);
+        if (local) {
+          setCollege(local);
+          trackPageView(`/colleges/${id}`, { college_id: id, source: 'catalog' });
+        }
+      }
+    } finally {
+      setCollegeLoading(false);
     }
   };
 
@@ -140,11 +161,23 @@ export const CollegeDetail = () => {
     }
   };
 
+  if (collegeLoading) {
+    return (
+      <div className="min-h-screen bg-white">
+        <Header />
+        <div className="px-6 md:px-12 lg:px-24 py-12 text-center text-zinc-600">Loading...</div>
+      </div>
+    );
+  }
+
   if (!college) {
     return (
       <div className="min-h-screen bg-white">
         <Header />
-        <div className="px-6 md:px-12 lg:px-24 py-12 text-center">Loading...</div>
+        <div className="px-6 md:px-12 lg:px-24 py-12 text-center">
+          <p className="text-zinc-600 mb-4">We couldn’t load this college.</p>
+          <Link to="/colleges" className="text-[#002FA7] font-bold hover:underline">Back to colleges</Link>
+        </div>
       </div>
     );
   }
