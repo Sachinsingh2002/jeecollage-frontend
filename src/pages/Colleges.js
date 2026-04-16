@@ -7,9 +7,19 @@ import { MagnifyingGlass, MapPin, Star, Scales, Check, BookmarkSimple } from '@p
 import { useAuth } from '../contexts/AuthContext';
 import { trackPageView } from '../utils/analytics';
 import axios from 'axios';
+import { COLLEGES_CATALOG } from '../data/collegesCatalog';
+import {
+  listStatesFromCatalog,
+  listCitiesFromCatalog,
+  listCoursesFromCatalog,
+  queryCollegesCatalog,
+} from '../lib/collegesLocal';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+const API = BACKEND_URL ? `${BACKEND_URL}/api` : '';
+
+const initialCollegesDataSource =
+  !BACKEND_URL || process.env.REACT_APP_USE_STATIC_COLLEGES === 'true' ? 'catalog' : 'api';
 
 const RATING_OPTIONS = [
   { label: 'All Ratings', value: 0 },
@@ -39,44 +49,61 @@ export const Colleges = () => {
   const [bookmarkIds, setBookmarkIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pageSettings, setPageSettings] = useState(null);
+  const [dataSource, setDataSource] = useState(initialCollegesDataSource);
 
   useEffect(() => {
-    fetchStates();
-    fetchCourses();
-    fetchCities();
     fetchPageSettings();
-    if (user) fetchBookmarkIds();
   }, []);
 
   useEffect(() => {
+    if (user) fetchBookmarkIds();
+  }, [user]);
+
+  useEffect(() => {
+    const loadFilterMeta = async () => {
+      if (dataSource === 'catalog') {
+        setStates(listStatesFromCatalog());
+        setCourses(listCoursesFromCatalog());
+        return;
+      }
+      try {
+        const [{ data: st }, { data: co }, { data: ci }] = await Promise.all([
+          axios.get(`${API}/states`),
+          axios.get(`${API}/courses`),
+          axios.get(`${API}/cities`, { params: {} }),
+        ]);
+        setStates(st);
+        setCourses(co);
+        setCities(ci);
+      } catch (error) {
+        console.error('Error fetching filter metadata:', error);
+        setDataSource('catalog');
+      }
+    };
+    loadFilterMeta();
+  }, [dataSource]);
+
+  useEffect(() => {
+    if (dataSource !== 'catalog') return;
+    setCities(listCitiesFromCatalog(COLLEGES_CATALOG, selectedState || ''));
+  }, [dataSource, selectedState]);
+
+  useEffect(() => {
     fetchColleges();
-  }, [selectedState, selectedCity, selectedCourse, minRating, page, searchParams]);
+  }, [selectedState, selectedCity, selectedCourse, minRating, page, searchParams, dataSource]);
 
-  const fetchStates = async () => {
-    try {
-      const { data } = await axios.get(`${API}/states`);
-      setStates(data);
-    } catch (error) {
-      console.error('Error fetching states:', error);
+  const refreshCities = async (stateFilter) => {
+    if (dataSource === 'catalog') {
+      setCities(listCitiesFromCatalog(COLLEGES_CATALOG, stateFilter || ''));
+      return;
     }
-  };
-
-  const fetchCourses = async () => {
     try {
-      const { data } = await axios.get(`${API}/courses`);
-      setCourses(data);
-    } catch (error) {
-      console.error('Error fetching courses:', error);
-    }
-  };
-
-  const fetchCities = async (state) => {
-    try {
-      const params = state ? { state } : {};
+      const params = stateFilter ? { state: stateFilter } : {};
       const { data } = await axios.get(`${API}/cities`, { params });
       setCities(data);
     } catch (error) {
       console.error('Error fetching cities:', error);
+      setDataSource('catalog');
     }
   };
 
@@ -96,13 +123,30 @@ export const Colleges = () => {
 
   const fetchColleges = async () => {
     setLoading(true);
+    const query = searchQuery || searchParams.get('search') || '';
     try {
+      if (dataSource === 'catalog') {
+        const result = queryCollegesCatalog(
+          {
+            state: selectedState,
+            city: selectedCity,
+            course: selectedCourse,
+            min_rating: minRating,
+            search: query,
+          },
+          page,
+          12
+        );
+        setColleges(result.colleges);
+        setTotalPages(result.total_pages);
+        setTotal(result.total);
+        return;
+      }
       const params = { page, per_page: 12 };
       if (selectedState) params.state = selectedState;
       if (selectedCity) params.city = selectedCity;
       if (selectedCourse) params.course = selectedCourse;
       if (minRating > 0) params.min_rating = minRating;
-      const query = searchQuery || searchParams.get('search') || '';
       if (query) params.search = query;
       const { data } = await axios.get(`${API}/colleges`, { params });
       setColleges(data.colleges);
@@ -110,6 +154,21 @@ export const Colleges = () => {
       setTotal(data.total);
     } catch (error) {
       console.error('Error fetching colleges:', error);
+      setDataSource('catalog');
+      const result = queryCollegesCatalog(
+        {
+          state: selectedState,
+          city: selectedCity,
+          course: selectedCourse,
+          min_rating: minRating,
+          search: query,
+        },
+        page,
+        12
+      );
+      setColleges(result.colleges);
+      setTotalPages(result.total_pages);
+      setTotal(result.total);
     } finally {
       setLoading(false);
     }
@@ -124,6 +183,23 @@ export const Colleges = () => {
   const fetchCollegesWithSearch = async (query) => {
     setLoading(true);
     try {
+      if (dataSource === 'catalog') {
+        const result = queryCollegesCatalog(
+          {
+            state: selectedState,
+            city: selectedCity,
+            course: selectedCourse,
+            min_rating: minRating,
+            search: query || '',
+          },
+          1,
+          12
+        );
+        setColleges(result.colleges);
+        setTotalPages(result.total_pages);
+        setTotal(result.total);
+        return;
+      }
       const params = { page: 1, per_page: 12 };
       if (selectedState) params.state = selectedState;
       if (selectedCity) params.city = selectedCity;
@@ -136,6 +212,21 @@ export const Colleges = () => {
       setTotal(data.total);
     } catch (error) {
       console.error('Error fetching colleges:', error);
+      setDataSource('catalog');
+      const result = queryCollegesCatalog(
+        {
+          state: selectedState,
+          city: selectedCity,
+          course: selectedCourse,
+          min_rating: minRating,
+          search: query || '',
+        },
+        1,
+        12
+      );
+      setColleges(result.colleges);
+      setTotalPages(result.total_pages);
+      setTotal(result.total);
     } finally {
       setLoading(false);
     }
@@ -187,12 +278,32 @@ export const Colleges = () => {
   const fetchCollegesCleared = async () => {
     setLoading(true);
     try {
+      if (dataSource === 'catalog') {
+        const result = queryCollegesCatalog(
+          { state: '', city: '', course: '', min_rating: 0, search: '' },
+          1,
+          12
+        );
+        setColleges(result.colleges);
+        setTotalPages(result.total_pages);
+        setTotal(result.total);
+        return;
+      }
       const { data } = await axios.get(`${API}/colleges`, { params: { page: 1, per_page: 12 } });
       setColleges(data.colleges);
       setTotalPages(data.total_pages);
       setTotal(data.total);
     } catch (error) {
       console.error('Error fetching colleges:', error);
+      setDataSource('catalog');
+      const result = queryCollegesCatalog(
+        { state: '', city: '', course: '', min_rating: 0, search: '' },
+        1,
+        12
+      );
+      setColleges(result.colleges);
+      setTotalPages(result.total_pages);
+      setTotal(result.total);
     } finally {
       setLoading(false);
     }
@@ -265,7 +376,7 @@ export const Colleges = () => {
               <h3 className="text-xs font-bold uppercase tracking-[0.2em] mb-4">Filter by State</h3>
               <div className="space-y-1 max-h-64 overflow-y-auto">
                 <button
-                  onClick={() => { setSelectedState(''); setSelectedCity(''); setPage(1); fetchCities(); }}
+                  onClick={() => { setSelectedState(''); setSelectedCity(''); setPage(1); refreshCities(); }}
                   data-testid="filter-all-states"
                   className={`w-full text-left px-3 py-2 text-sm transition-colors ${
                     selectedState === '' ? 'bg-[#002FA7] text-white font-bold' : 'hover:bg-zinc-200'
@@ -276,7 +387,7 @@ export const Colleges = () => {
                 {states.map((state, idx) => (
                   <button
                     key={idx}
-                    onClick={() => { setSelectedState(state.state); setSelectedCity(''); setPage(1); fetchCities(state.state); }}
+                    onClick={() => { setSelectedState(state.state); setSelectedCity(''); setPage(1); refreshCities(state.state); }}
                     data-testid={`filter-state-${idx}`}
                     className={`w-full text-left px-3 py-2 text-sm transition-colors ${
                       selectedState === state.state ? 'bg-[#002FA7] text-white font-bold' : 'hover:bg-zinc-200'

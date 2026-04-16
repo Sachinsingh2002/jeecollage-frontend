@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { Star, MapPin, Money, GraduationCap, X, Plus, Scales, TrendUp, TrendDown, Minus } from '@phosphor-icons/react';
 import axios from 'axios';
+import { COLLEGES_CATALOG, getCollegeByIdFromCatalog } from '../data/collegesCatalog';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -28,10 +29,15 @@ export const Compare = () => {
   const fetchCompareColleges = async (ids) => {
     setLoading(true);
     try {
+      if (!BACKEND_URL) {
+        setColleges(ids.map((id) => getCollegeByIdFromCatalog(id)).filter(Boolean));
+        return;
+      }
       const { data } = await axios.post(`${API}/colleges/compare`, { ids });
       setColleges(data);
     } catch (error) {
       console.error('Error fetching comparison:', error);
+      setColleges(ids.map((id) => getCollegeByIdFromCatalog(id)).filter(Boolean));
     } finally {
       setLoading(false);
     }
@@ -39,10 +45,15 @@ export const Compare = () => {
 
   const fetchAllColleges = async () => {
     try {
+      if (!BACKEND_URL) {
+        setAllColleges(COLLEGES_CATALOG);
+        return;
+      }
       const { data } = await axios.get(`${API}/colleges?per_page=200`);
       setAllColleges(data.colleges || data);
     } catch (error) {
       console.error('Error fetching colleges:', error);
+      setAllColleges(COLLEGES_CATALOG);
     }
   };
 

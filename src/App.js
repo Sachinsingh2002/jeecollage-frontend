@@ -1,5 +1,5 @@
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -42,6 +42,7 @@ function App() {
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/complete-profile" element={<CompleteProfile />} />
           <Route path="/colleges" element={<Colleges />} />
+          <Route path="/collages" element={<Navigate to="/colleges" replace />} />
           <Route path="/colleges/:id" element={<CollegeDetail />} />
           <Route path="/community" element={<Community />} />
           <Route path="/community/new" element={<NewPost />} />
